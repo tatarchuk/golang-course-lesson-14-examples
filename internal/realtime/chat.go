@@ -3,8 +3,10 @@ package realtime
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 // ChatMessage is slide 40's message.
@@ -14,12 +16,21 @@ type ChatMessage struct {
 	Text   string `json:"text"`
 }
 
-// ChatOnMessage is slide 40: what readPump does with a chat message.
+// ChatOnMessage is slide 40: what readPump does with a chat message. The author comes from
+// the JWT claims and the room from the connection, whatever the message body says (on the
+// slide the room came from the body, so a client could post into any room).
 func ChatOnMessage(h *Hub) func(c *Client, data []byte) {
 	return func(c *Client, data []byte) {
 		var msg ChatMessage
-		json.Unmarshal(data, &msg)
+		if err := json.Unmarshal(data, &msg); err != nil {
+			log.Printf("chat: %s sent a message that is not JSON: %v", c, err)
+			return
+		}
+		if strings.TrimSpace(msg.Text) == "" {
+			return
+		}
 		msg.Author = c.user // from the JWT claims
+		msg.Room = c.room() // the connection's room
 		payload, _ := json.Marshal(msg)
 		h.Publish("chat:"+msg.Room, payload)
 	}

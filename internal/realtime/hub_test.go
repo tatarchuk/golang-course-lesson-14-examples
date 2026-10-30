@@ -12,7 +12,7 @@ import (
 
 func testConfig() Config {
 	return Config{PongWait: time.Minute, PingPeriod: 54 * time.Second, WriteWait: 10 * time.Second,
-		MaxMessageSize: 4096, SendBuffer: 16}
+		MaxMessageSize: 4096, SendBuffer: 64}
 }
 
 func newTestClient(buffer int, topics ...string) *Client {
@@ -69,7 +69,6 @@ func TestPublishOnlyToSubscribedTopic(t *testing.T) {
 // TestSlowClientDroppedNotBlocking is slides 28 and 44: a client that stops reading must
 // not stall the fan-out; the hub drops it and keeps serving everybody else.
 func TestSlowClientDroppedNotBlocking(t *testing.T) {
-	t.Skip(asOnSlides)
 	h := NewHub(testConfig())
 	go h.Run()
 	defer h.Stop()
@@ -114,7 +113,6 @@ func TestSlowClientDroppedNotBlocking(t *testing.T) {
 // every send channel exactly once, a second Stop is harmless, and whatever arrives after
 // the hub is gone (a late unregister from a readPump, a publish, a register) returns.
 func TestStopUnblocksLateUnregister(t *testing.T) {
-	t.Skip(asOnSlides)
 	h := NewHub(testConfig())
 	go h.Run()
 	c := newTestClient(1, "dashboard")
@@ -140,4 +138,67 @@ func TestStopUnblocksLateUnregister(t *testing.T) {
 	within(t, 100*time.Millisecond, "unregisterClient after Stop", func() { h.unregisterClient(c) })
 	within(t, 100*time.Millisecond, "Publish after Stop", func() { h.Publish("dashboard", []byte("late")) })
 	within(t, 100*time.Millisecond, "registerClient after Stop", func() { h.registerClient(newTestClient(1)) })
+}
+
+// TestUnregisterAfterDropDoesNotCloseTwice is finding M1 of the slide 42 review: once the
+// hub has dropped a slow client (and closed its send channel), the client's own late
+// unregister must leave the channel alone. A second close panics inside Run, which ends
+// the whole process.
+func TestUnregisterAfterDropDoesNotCloseTwice(t *testing.T) {
+	h := NewHub(testConfig())
+	go h.Run()
+	defer h.Stop()
+	stuck := newTestClient(1, "dashboard") // nobody drains it
+	h.registerClient(stuck)
+	for i := 1; i <= 3; i++ {
+		if !within(t, 100*time.Millisecond, fmt.Sprintf("Publish #%d", i), func() { h.Publish("dashboard", []byte("tick")) }) {
+			return
+		}
+	}
+	clients := -1
+	for deadline := time.Now().Add(time.Second); clients != 0 && time.Now().Before(deadline); {
+		if !within(t, 100*time.Millisecond, "Stats", func() { clients = h.Stats().Clients }) {
+			return
+		}
+	}
+	if clients != 0 {
+		t.Fatalf("clients = %d, want 0 (the slow client dropped)", clients)
+	}
+
+	within(t, 100*time.Millisecond, "unregister of the dropped client", func() { h.unregisterClient(stuck) })
+	if !within(t, 100*time.Millisecond, "Stats after the late unregister", func() { clients = h.Stats().Clients }) {
+		return
+	}
+	if clients != 0 {
+		t.Fatalf("clients = %d after the late unregister, want 0", clients)
+	}
+}
+
+// TestNewHubRejectsBadConfig: the fixes rely on a buffered send queue, a ping period below
+// the pong wait, a write deadline and a read limit (review section "Order of the fixes").
+func TestNewHubRejectsBadConfig(t *testing.T) {
+	for name, mutate := range map[string]func(*Config){
+		"unbuffered send":            func(c *Config) { c.SendBuffer = 0 },
+		"no ping period":             func(c *Config) { c.PingPeriod = 0 },
+		"ping period over pong wait": func(c *Config) { c.PingPeriod = c.PongWait },
+		"no write deadline":          func(c *Config) { c.WriteWait = 0 },
+		"no read limit":              func(c *Config) { c.MaxMessageSize = 0 },
+	} {
+		cfg := testConfig()
+		mutate(&cfg)
+		if err := cfg.Validate(); err == nil {
+			t.Errorf("%s: Validate accepted %+v", name, cfg)
+		}
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("%s: NewHub accepted %+v", name, cfg)
+				}
+			}()
+			NewHub(cfg)
+		}()
+	}
+	if err := testConfig().Validate(); err != nil {
+		t.Errorf("the test config is valid, Validate said %v", err)
+	}
 }

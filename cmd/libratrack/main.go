@@ -37,8 +37,11 @@ func main() {
 		PingPeriod:     *pongWait * 9 / 10,
 		WriteWait:      10 * time.Second,
 		MaxMessageSize: 4096,
-		SendBuffer:     16,
+		SendBuffer:     64,
 		AllowedOrigin:  *origin,
+	}
+	if err := rt.Validate(); err != nil {
+		log.Fatalf("invalid settings: %v", err)
 	}
 	s := server.New(server.Config{Secret: secret, Realtime: rt})
 	go s.Hub.Run()

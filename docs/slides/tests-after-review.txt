@@ -1,0 +1,88 @@
+Step 1.6: the hub after the fixes of the slide 42 AI review (docs/ai/hub-review-raw.md, triage in the README).
+Recorded on the Mac, 2026-10-30. The eight t.Skip lines of step 1.4 are gone, two tests were added for review
+findings no test pinned yet (TestUnregisterAfterDropDoesNotCloseTwice for M1, TestNewHubRejectsBadConfig for
+"Order of the fixes"), and the default send queue grew from 16 to 64 (see "SendBuffer" below).
+
+1. Finding M1 before its fix. The review warned: "Apply C2 and M1 together. Dropping slow clients without the
+   membership check brings in the double close." With every other fix in place but without the membership check
+   in Hub.drop, the new M1 test crashes the test binary exactly as predicted:
+
+$ go test -race -count=1 -run '^TestUnregisterAfterDropDoesNotCloseTwice$' ./internal/realtime
+panic: close of closed channel
+
+goroutine 9 [running]:
+libratrack/internal/realtime.(*Hub).drop(0xc0000d0200, 0xc0000d0300, 0x0, {0x1027e3b87, 0x4})
+	./internal/realtime/hub.go:130 +0xe0
+libratrack/internal/realtime.(*Hub).Run(0xc0000d0200)
+	./internal/realtime/hub.go:102 +0x1e8
+created by libratrack/internal/realtime.TestUnregisterAfterDropDoesNotCloseTwice in goroutine 8
+	./internal/realtime/hub_test.go:149 +0xc8
+FAIL	libratrack/internal/realtime	0.422s
+FAIL
+[... goroutine traces omitted ...]
+[exit 1]
+
+2. SendBuffer. With the slow-client drop in place, a queue of 16 was too small for the test bursts: 20 clients
+   that chat at once put 20 messages into every queue within microseconds, and the hub disconnected healthy
+   readers with 1008 "slow consumer: send queue full" (TestConnectDisconnectCyclesNoLeak, cycle 3) - the policy
+   working, with the wrong size. The default is now 64, the value the slide 34 design proposes; the drop policy
+   itself stays pinned by TestSlowClientDroppedNotBlocking with a queue of 2. TestPingsAndBroadcastsShareOneWriter
+   sends a burst of 300 to one client, so it uses a queue of 512: it tests writers, not backpressure.
+
+3. The whole suite with the race detector. Server log lines are filtered out of this listing (counted at the end).
+
+$ go test -race -count=1 -v ./...
+?   	libratrack/cmd/libratrack	[no test files]
+?   	libratrack/cmd/wsclient	[no test files]
+--- PASS: TestIssueParseRoundTrip (0.00s)
+--- PASS: TestParseRejectsOtherSecretAndExpiredToken (0.00s)
+--- PASS: TestMiddlewareReadsHeaderOrQuery (0.00s)
+PASS
+ok  	libratrack/internal/auth	1.195s
+--- PASS: TestReturnPublishesLoanReturned (0.00s)
+--- PASS: TestReturnTwiceConflicts (0.00s)
+--- PASS: TestReturnUnknownLoan (0.00s)
+PASS
+ok  	libratrack/internal/library	1.173s
+--- PASS: TestConcurrentRegisterBroadcastUnregister (0.00s)
+--- PASS: TestUnregisterTwiceIsSafe (0.00s)
+PASS
+ok  	libratrack/internal/mutexhub	1.173s
+?   	libratrack/internal/naive	[no test files]
+--- PASS: TestPublishOnlyToSubscribedTopic (0.00s)
+--- PASS: TestSlowClientDroppedNotBlocking (0.01s)
+--- PASS: TestStopUnblocksLateUnregister (0.00s)
+--- PASS: TestUnregisterAfterDropDoesNotCloseTwice (0.00s)
+--- PASS: TestNewHubRejectsBadConfig (0.00s)
+PASS
+ok  	libratrack/internal/realtime	1.195s
+--- PASS: TestHandshakeAcceptMatchesSlide8 (0.00s)
+--- PASS: TestCheckOriginRejectsForeignOrigin (0.00s)
+--- PASS: TestHandshakeRequiresToken (0.00s)
+--- PASS: TestChatThreeClients (0.61s)
+--- PASS: TestChatAuthorAndRoomFromConnection (0.21s)
+--- PASS: TestDashboardEventWithinOneSecond (0.01s)
+--- PASS: TestSSEDashboard (0.03s)
+--- PASS: TestOversizedMessageCloses1009 (0.00s)
+--- PASS: TestAbruptDisconnectCleanedUp (0.02s)
+--- PASS: TestDeadPeerTimesOut (0.31s)
+--- PASS: TestPingsAndBroadcastsShareOneWriter (0.01s)
+--- PASS: TestConnectDisconnectCyclesNoLeak (0.15s)
+--- PASS: TestShutdownClosesClients (0.01s)
+PASS
+ok  	libratrack/internal/server	2.547s
+?   	libratrack/web	[no test files]
+[391 server log lines omitted]
+[exit 0]
+
+4. The hub and server packages ten times in a row, to catch flaky timing:
+
+$ go test -race -count=10 ./internal/realtime ./internal/server
+ok  	libratrack/internal/realtime
+ok  	libratrack/internal/server
+[exit 0]
+
+5. Static checks:
+
+$ gofmt -l . && go vet ./... && go vet -tags racedemo ./...
+[exit 0]

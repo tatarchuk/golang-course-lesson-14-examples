@@ -1,0 +1,46 @@
+Lesson 14 prompt log (LibraTrack realtime examples; WebSockets and live updates).
+
+The deck has two prompts for the practical part: slide 34 (designing the chat architecture with AI) and
+slide 42 (step 4: an AI review of the hub's concurrency). Both were sent, translated from Ukrainian and
+otherwise word for word, to fresh Claude Code subagents (general-purpose, Claude Opus 5.5, no files and no
+tools: everything they needed was in the prompt) on 2026-10-30. Their unedited replies are
+docs/ai/chat-design-raw.md and docs/ai/hub-review-raw.md; the triage is in README.md, section
+"Lesson 14 Report: WebSocket Examples".
+
+The only addition to each slide prompt is the first line, which keeps the subagent from looking around:
+"Answer from the code in this message only: do not read files, run commands or use any tools. Reply in
+English." (slide 34: "Answer from this message only: ...").
+
+=== Slide 34: designing the chat architecture (sent verbatim) ===
+
+Answer from this message only: do not read files, run commands or use any tools. Reply in English.
+
+Design the architecture for a real-time chat in a Go + Gin API (LibraTrack) for library staff discussing daily tasks.
+Requirements:
+- several chat rooms (one per department)
+- messages are broadcast only within the room
+- connections with JWT authentication (use the existing middleware)
+- must not block on a slow client
+Describe the hub design, the message flow and how rooms map to Go data structures.
+
+=== Slide 42: concurrency review of the hub (sent verbatim) ===
+
+The slide's placeholder "[paste your hub.go, client.go]" was filled with the four files of the hub as the
+slides show it, line-numbered, each under a "=== <path>" heading: internal/realtime/hub.go, client.go,
+ws_handler.go (starts the pumps) and sse_handler.go (the other hub client), as committed in dd834ed.
+The exact pasted text can be rebuilt with:
+  for f in hub client ws_handler sse_handler; do echo "=== internal/realtime/$f.go"; \
+    git show dd834ed:internal/realtime/$f.go | nl -ba -w3 -s'  '; done
+
+Answer from the code in this message only: do not read files, run commands or use any tools. Reply in English.
+
+Check this WebSocket hub implementation for concurrency correctness:
+
+[the four line-numbered files described above]
+
+In particular, check:
+- whether there is shared state accessed outside the hub's own goroutine
+- whether every goroutine has a guaranteed exit path on disconnect
+- whether closing c.send can ever happen more than once
+
+List the findings with line numbers. Do not rewrite the file — I will apply the fixes myself.

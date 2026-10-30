@@ -3,6 +3,7 @@ package realtime
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -29,16 +30,19 @@ func ServeWS(h *Hub, cfg Config, topics func(*http.Request) ([]string, error), o
 		user, _ := auth.UserFrom(r.Context())
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			log.Printf("upgrade failed: %v", err)
+			log.Printf("upgrade failed: %v", err) // Upgrade has already answered with an HTTP error
 			return
 		}
-		defer conn.Close()
 		c := &Client{hub: h, conn: conn, send: make(chan []byte, cfg.SendBuffer), topics: map[string]bool{}, user: user, cfg: cfg}
 		for _, t := range subscribed {
 			c.topics[t] = true
 		}
-		h.registerClient(c)
-		c.keepAlive()
+		if !h.registerClient(c) { // the hub has stopped: the server is shutting down
+			_ = conn.WriteControl(websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseGoingAway, "server shutdown"), time.Now().Add(cfg.WriteWait))
+			conn.Close()
+			return
+		}
 		go c.writePump()
 		c.readPump(onMessage)
 	}

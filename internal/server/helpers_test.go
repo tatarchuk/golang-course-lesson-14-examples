@@ -37,7 +37,7 @@ func newEnv(t *testing.T, tune ...func(*realtime.Config)) *env {
 	ts := httptest.NewUnstartedServer(nil)
 	base := "http://" + ts.Listener.Addr().String()
 	rt := realtime.Config{PongWait: 60 * time.Second, PingPeriod: 54 * time.Second, WriteWait: 10 * time.Second,
-		MaxMessageSize: 4096, SendBuffer: 16, AllowedOrigin: base}
+		MaxMessageSize: 4096, SendBuffer: 64, AllowedOrigin: base}
 	for _, f := range tune {
 		f(&rt)
 	}

@@ -108,7 +108,6 @@ func TestChatThreeClients(t *testing.T) {
 // TestChatAuthorAndRoomFromConnection: the author comes from the token (slide 40) and the
 // room from the connection, whatever the message body claims.
 func TestChatAuthorAndRoomFromConnection(t *testing.T) {
-	t.Skip(asOnSlides)
 	e := newEnv(t)
 	anna := e.mustDial("/ws/chat?room=general", "anna")
 	bohdan := e.mustDial("/ws/chat?room=general", "bohdan")
@@ -150,7 +149,6 @@ func TestDashboardEventWithinOneSecond(t *testing.T) {
 // TestSSEDashboard is slide 30: the same dashboard events as a text/event-stream, and the
 // subscription ends when the browser goes away.
 func TestSSEDashboard(t *testing.T) {
-	t.Skip(asOnSlides)
 	e := newEnv(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -210,7 +208,6 @@ func TestSSEDashboard(t *testing.T) {
 
 // TestOversizedMessageCloses1009 is slide 16: SetReadLimit bounds a message.
 func TestOversizedMessageCloses1009(t *testing.T) {
-	t.Skip(asOnSlides)
 	e := newEnv(t)
 	c := e.mustDial("/ws/chat?room=general", "anna")
 	if err := c.WriteMessage(websocket.TextMessage, []byte(strings.Repeat("x", 5000))); err != nil {
@@ -250,10 +247,10 @@ func TestDeadPeerTimesOut(t *testing.T) {
 // writer. With a ping every millisecond and a burst of 300 broadcasts, a second writer on
 // the same connection is caught by the race detector or by gorilla's own check.
 func TestPingsAndBroadcastsShareOneWriter(t *testing.T) {
-	t.Skip(asOnSlides)
 	e := newEnv(t, func(c *realtime.Config) {
 		c.PingPeriod = time.Millisecond
 		c.PongWait = 5 * time.Second
+		c.SendBuffer = 512 // the whole burst fits: this test is about writers, not backpressure
 	})
 	dash := e.mustDial("/ws/dashboard", "anna")
 	e.waitClients(1, 2*time.Second)
@@ -283,7 +280,6 @@ func TestPingsAndBroadcastsShareOneWriter(t *testing.T) {
 // and leave in five rounds, half with a close frame and half abruptly, and the goroutine
 // count returns to where it started.
 func TestConnectDisconnectCyclesNoLeak(t *testing.T) {
-	t.Skip(asOnSlides)
 	e := newEnv(t)
 	users := []string{"anna", "bohdan", "olena"}
 	baseline := runtime.NumGoroutine()
@@ -328,7 +324,6 @@ func TestConnectDisconnectCyclesNoLeak(t *testing.T) {
 // TestShutdownClosesClients is slide 27 at server shutdown: every client gets a 1001
 // close frame and every per-client goroutine ends.
 func TestShutdownClosesClients(t *testing.T) {
-	t.Skip(asOnSlides)
 	e := newEnv(t)
 	baseline := runtime.NumGoroutine()
 	conns := make([]*websocket.Conn, 10)
