@@ -2,6 +2,7 @@
 bin/
 *.out
 *.test
+race.log
 
 # IDE and local configuration
 .idea/

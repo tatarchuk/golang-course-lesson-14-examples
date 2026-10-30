@@ -140,6 +140,40 @@ func TestStopUnblocksLateUnregister(t *testing.T) {
 	within(t, 100*time.Millisecond, "registerClient after Stop", func() { h.registerClient(newTestClient(1)) })
 }
 
+// TestStopWaitsForWriters is finding M1 of the final review: http.Server.Shutdown starts the
+// RegisterOnShutdown hook in its own goroutine and main returns right after it, so Stop
+// must not return before every connection's writer has sent its close frame, and gives up
+// after WriteWait.
+func TestStopWaitsForWriters(t *testing.T) {
+	cfg := testConfig()
+	cfg.WriteWait = 300 * time.Millisecond
+	h := NewHub(cfg)
+	go h.Run()
+	slow := newTestClient(4, "dashboard")
+	slow.closed = make(chan struct{}) // closed when its writer has sent the close frame
+	stuck := newTestClient(4, "dashboard")
+	stuck.closed = make(chan struct{}) // its writer never finishes
+	h.registerClient(slow)
+	h.registerClient(stuck)
+
+	returned := make(chan struct{})
+	go func() {
+		h.Stop()
+		close(returned)
+	}()
+	select {
+	case <-returned:
+		t.Fatal("Stop returned before the writers sent their close frames")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(slow.closed)
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		t.Fatal("Stop still waits for a stuck writer after WriteWait")
+	}
+}
+
 // TestUnregisterAfterDropDoesNotCloseTwice is finding M1 of the slide 42 review: once the
 // hub has dropped a slow client (and closed its send channel), the client's own late
 // unregister must leave the channel alone. A second close panics inside Run, which ends

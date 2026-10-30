@@ -1,0 +1,62 @@
+Fixes of the final review (docs/review-raw.md), test first, recorded 2026-10-30 on the Mac. The go test output is
+filtered to the test lines.
+
+M1 (graded minor by the review, fixed because it is the app's I1 in the same hub): http.Server.Shutdown starts the
+RegisterOnShutdown hook in its own goroutine and does not wait for it, and Stop returned once Run had closed the
+queues, so the 1001 frames raced the process exit. TestStopWaitsForWriters is new; the run before the fix already
+has Client.closed (closed by writePump).
+
+$ go test -race -count=1 -run '^TestStopWaitsForWriters$' -v ./internal/realtime/     # before the hub waits
+=== RUN   TestStopWaitsForWriters
+    hub_test.go:166: Stop returned before the writers sent their close frames
+--- FAIL: TestStopWaitsForWriters (0.00s)
+FAIL
+FAIL	libratrack/internal/realtime	0.298s
+FAIL
+[exit 1]
+
+$ go test -race -count=1 -run '^TestStopWaitsForWriters$' -v ./internal/realtime/     # after: Stop waits, main calls it after srv.Shutdown
+--- PASS: TestStopWaitsForWriters (0.30s)
+ok  	libratrack/internal/realtime	1.635s
+[exit 0]
+
+$ go test -race -count=3 ./internal/realtime ./internal/server
+ok  	libratrack/internal/realtime	2.082s
+ok  	libratrack/internal/server	5.116s
+[exit 0]
+
+I1: race.log, the local output of the race-demo job, was committed in 5a0d57f. A new static CI check, replayed
+under bash before and after git rm race.log:
+
+$ no_logs_tracked() { ! git ls-files | grep -E '\.log$'; }; check "No log file is committed" no_logs_tracked   # before
+FAIL: No log file is committed
+race.log
+
+$ ... # after: race.log removed and ignored, the race-demo job writes "$RUNNER_TEMP/race.log"
+PASS: No log file is committed
+
+$ RUNNER_TEMP=<scratch> bash <the race-demo step of the workflow>
+The race detector reported 3 data races, as slide 23 says it will.
+[exit 0]   (git status shows no new file)
+
+The whole module after the fixes:
+
+$ gofmt -l . && go vet ./... && go vet -tags racedemo ./... && go test -race -count=1 -v ./...
+?   	libratrack/cmd/libratrack	[no test files]
+?   	libratrack/cmd/wsclient	[no test files]
+ok  	libratrack/internal/auth	1.172s
+ok  	libratrack/internal/library	1.159s
+ok  	libratrack/internal/mutexhub	1.149s
+?   	libratrack/internal/naive	[no test files]
+ok  	libratrack/internal/realtime	1.477s
+ok  	libratrack/internal/server	2.523s
+?   	libratrack/web	[no test files]
+[exit 0]
+Top-level PASS: 27 (26 before the review plus TestStopWaitsForWriters), FAIL: 0, SKIP: 0.
+
+$ go test -race -count=1 -tags racedemo ./internal/naive     # must fail
+[exit 1]   3 "WARNING: DATA RACE" reports
+
+$ bash scripts/smoke.sh
+SMOKE OK   (15 PASS lines)
+[exit 0]

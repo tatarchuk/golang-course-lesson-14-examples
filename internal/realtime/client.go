@@ -25,6 +25,7 @@ type Client struct {
 	cfg       Config
 	closeCode int // set by the hub before it closes send: the close frame writePump sends
 	closeText string
+	closed    chan struct{} // closed by writePump when it returns: its close frame is sent (nil without a writer: SSE)
 }
 
 func (c *Client) subscribedTo(topic string) bool { return c.topics[topic] }
@@ -83,6 +84,7 @@ func (c *Client) writePump() {
 	defer func() {
 		ticker.Stop()
 		c.conn.Close()
+		close(c.closed)
 	}()
 	for {
 		select {

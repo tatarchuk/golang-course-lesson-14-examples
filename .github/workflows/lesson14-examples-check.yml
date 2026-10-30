@@ -111,6 +111,8 @@ jobs:
 
           env_not_tracked() { grep -qx '\.env' .gitignore && ! git ls-files --error-unmatch .env 2> /dev/null; }
           check ".env is ignored and not committed" env_not_tracked
+          no_logs_tracked() { ! git ls-files | grep -E '\.log$'; }
+          check "No log file is committed (the race-demo job writes its log under RUNNER_TEMP)" no_logs_tracked
 
           scripts_parse() { local f; for f in scripts/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || return 1; done; }
           check "Shell scripts parse (bash -n)" scripts_parse
@@ -159,11 +161,12 @@ jobs:
 
       - name: The unsynchronised map must fail under -race
         run: |
-          if go test -race -tags racedemo -count=1 ./internal/naive > race.log 2>&1; then
-            cat race.log
+          log="$RUNNER_TEMP/race.log" # outside the checkout, so a local replay leaves no file behind
+          if go test -race -tags racedemo -count=1 ./internal/naive > "$log" 2>&1; then
+            cat "$log"
             echo "::error title=Race not detected::go test -race passed on the slide 23 map"
             exit 1
           fi
-          grep -m1 -A6 'WARNING: DATA RACE' race.log
-          grep -q 'WARNING: DATA RACE' race.log || { cat race.log; echo "::error title=No race report::the test failed without a DATA RACE report"; exit 1; }
-          echo "The race detector reported $(grep -c 'WARNING: DATA RACE' race.log) data races, as slide 23 says it will."
+          grep -m1 -A6 'WARNING: DATA RACE' "$log"
+          grep -q 'WARNING: DATA RACE' "$log" || { cat "$log"; echo "::error title=No race report::the test failed without a DATA RACE report"; exit 1; }
+          echo "The race detector reported $(grep -c 'WARNING: DATA RACE' "$log") data races, as slide 23 says it will."

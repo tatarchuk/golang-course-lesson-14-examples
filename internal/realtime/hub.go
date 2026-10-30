@@ -70,6 +70,7 @@ type Hub struct {
 	quit       chan struct{} // closed by Stop
 	done       chan struct{} // closed when Run has returned
 	stopOnce   sync.Once
+	closing    []*Client // the connections Run closed at shutdown; read only after done
 }
 
 // NewHub returns a hub; start it with go h.Run(). It panics on an invalid config.
@@ -116,6 +117,9 @@ func (h *Hub) Run() {
 		case <-h.quit:
 			for c := range h.clients {
 				h.drop(c, websocket.CloseGoingAway, "server shutdown")
+				if c.closed != nil { // a WebSocket: its writer sends the close frame
+					h.closing = append(h.closing, c)
+				}
 			}
 			return
 		}
@@ -157,11 +161,23 @@ func (h *Hub) Stats() Stats {
 	}
 }
 
-// Stop sends every client a 1001 close (going away), ends Run and waits for it; a second
-// call returns at once. Run must have been started.
+// Stop sends every client a 1001 close (going away), ends Run and then waits until each
+// WebSocket's writer has sent its close frame, at most WriteWait. http.Server.Shutdown
+// neither touches hijacked connections nor waits for its RegisterOnShutdown hooks, so main
+// registers this hook and calls Stop again once srv.Shutdown has returned (finding M1 of
+// the final review). Every call waits the same way; Run must have been started.
 func (h *Hub) Stop() {
 	h.stopOnce.Do(func() { close(h.quit) })
 	<-h.done
+	timeout := time.NewTimer(h.cfg.WriteWait)
+	defer timeout.Stop()
+	for _, c := range h.closing {
+		select {
+		case <-c.closed:
+		case <-timeout.C:
+			return
+		}
+	}
 }
 
 // registerClient hands c to the hub; false means the hub has stopped.

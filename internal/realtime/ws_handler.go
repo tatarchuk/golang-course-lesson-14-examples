@@ -33,7 +33,8 @@ func ServeWS(h *Hub, cfg Config, topics func(*http.Request) ([]string, error), o
 			log.Printf("upgrade failed: %v", err) // Upgrade has already answered with an HTTP error
 			return
 		}
-		c := &Client{hub: h, conn: conn, send: make(chan []byte, cfg.SendBuffer), topics: map[string]bool{}, user: user, cfg: cfg}
+		c := &Client{hub: h, conn: conn, send: make(chan []byte, cfg.SendBuffer), topics: map[string]bool{}, user: user, cfg: cfg,
+			closed: make(chan struct{})}
 		for _, t := range subscribed {
 			c.topics[t] = true
 		}

@@ -68,6 +68,7 @@ func main() {
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			log.Printf("shutdown: %v", err)
 		}
+		s.Hub.Stop() // srv.Shutdown does not wait for its hook: every client gets its 1001 first
 	}
 }
 

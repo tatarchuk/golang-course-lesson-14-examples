@@ -44,3 +44,69 @@ In particular, check:
 - whether closing c.send can ever happen more than once
 
 List the findings with line numbers. Do not rewrite the file — I will apply the fixes myself.
+
+=== Final review of the repository, sent verbatim to a fresh read-only subagent (Claude Fable 5.1) ===
+
+You are a Senior Code Reviewer with expertise in Go, concurrency and WebSockets. Your job is the final whole-branch review of the Lesson 14 examples repository /Users/oleksandr.tatarchuk/repo/golang-course-lesson-14-examples (Go module `libratrack`, course "Go with GenAI", lesson "Real-time magic: WebSockets and live updates"). The README is in Ukrainian; read it, write your review in English.
+
+## What was implemented
+
+No demo project ships with this lesson, so "the examples from the presentation" are the code on the slides. The repository assembles them into one module and runs them natively on a Mac: slide 23 (unsynchronised map, a race demo behind the build tag `racedemo`), slide 24 (RWMutex hub), slides 13-16, 20, 25-28 (Upgrader with CheckOrigin, readPump/writePump with ping/pong, the single-owner channel hub with bounded sends), slide 30 (SSE), slide 39 (/ws behind JWT middleware, token in a query parameter), slide 40 (chat, author from the claims), slide 41 (LoanService.Return publishes loan_returned to a dashboard), a terminal client cmd/wsclient (chat, listen, cycles), embedded web pages, scripts, and the two AI prompts of slides 34 and 42. The order was: code exactly as on the slides against tests written first (8 of 22 tests failed, recorded), then the slide 42 AI concurrency review and the fixes of its findings, then manual runs (browser tabs, 3x100 connect/disconnect cycles before and after, a dead peer with kill -STOP), then the report and CI.
+
+Grading of this repository (70 points, verbatim): "Run the examples from the presentation on your own PC. Verify using `go test -race` and manual testing of repeated connect/disconnect cycles." Screenshots S1-S8 are in docs/screenshots/.
+
+## Requirements / plan
+
+- Plan: /Users/oleksandr.tatarchuk/.claude/plans/lesson-14-websockets-chat.md. For this repository step 0.2 and Part 1 (steps 1.1-1.8, the "Slides to files" table, the Interfaces block and the "Tests (written first)" list) apply, plus "Context", "Decisions" and "Global constraints". The deck checklists are listed in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-14/albums_lesson14_homework.md (section "Чеклісти з презентації").
+- Review focus from the plan that concerns this repository: "A readPump that unregisters after the hub stopped blocks forever (goroutine leak on shutdown): `TestStopUnblocksLateUnregister`"; "the examples keep the token per tab in `sessionStorage`".
+- Deviations already documented by the implementer are in README.md, sections "Що не спрацювало як написано" and "Тріаж огляду ШІ (слайд 42)" (for example the send queue of 256 instead of 16). Weigh them.
+
+## Git range to review
+
+The repository has 10 commits, all Lesson 14 work. A review package with the commits 1dbae80..5a0d57f (commit list, stat, net diff with 10 lines of context) is at /private/tmp/claude-501/-Users-oleksandr-tatarchuk-repo-golang-course-lesson-14/85df7214-7be3-4ecf-891f-d8ca70ad71f9/scratchpad/review-examples.diff (about 230 KB): read it in passes. The first commit 1dbae80 (scaffold, first CI) is not in the package: `git show 1dbae80`.
+
+## What to check, beyond the usual plan alignment and code quality
+
+1. Every number and factual claim in README.md against the evidence files under docs/ (docs/environment.txt, docs/slides/*.txt, docs/ai/*-raw.md) and the code: test counts (e.g. 14 of 22, 26 of 26), goroutine numbers (+300, 207, 7), race counts, close codes, timeouts, queue sizes, file and test names, the AI triage table (does each "fixed" finding have the code change and the test it names?). List each number you checked with its source; every mismatch is a finding.
+2. Concurrency of internal/realtime (hub.go, client.go, ws_handler.go, sse_handler.go, chat.go) and cmd/wsclient: walk the questions of the slide 42 prompt (section "Slide 42" of prompts.txt) and of slide 45 over the fixed hub: data races, goroutine leaks, deadlocks on Stop, double close, blocking sends, more than one writer per connection, Publish/Register/Unregister after Stop, the SSE exit path.
+3. Security of the examples within their stated scope (local demo; token in the query string as on slide 39): CheckOrigin, token checks, the demo login, the server log never printing the query string, HTML pages (no injection from chat text).
+4. The tests: do they prove what their names claim (no vacuous pass, timing-based flakiness, leaks of goroutines in the tests themselves)? Is the racedemo CI job really failing on the race and passing otherwise?
+5. CI (.github/workflows/lesson14-examples-check.yml) and scripts/: does each check catch what it claims, and can any fail spuriously on GitHub's Ubuntu runner? The last CI run 41047094735 on 5a0d57f is green (`gh run view 41047094735`).
+6. Run the verification yourself on the Mac (Go 1.27.1): `gofmt -l .`, `go vet ./...`, `go test -race -count=1 ./...`, `go test -race -count=1 -tags racedemo ./internal/naive` (must fail with "DATA RACE"), and `bash scripts/smoke.sh` (it builds into the git-ignored bin/ and starts its own server on 127.0.0.1:18080; that is allowed). Report the results. Do not run `go mod tidy`, `gofmt -w` or anything else that writes to tracked files or the index.
+
+## The spec is a vision document
+
+The spec says what the software must do. It does not enumerate every input, environment, or condition the software will meet. For behavior the spec is silent on, judge by what a reasonable person using this software would expect: a reasonable person's expectation is a requirement, and a spec's silence is not permission. Grade such findings by their effect on that person, not by whether the spec mentions the trigger.
+
+## Declined to judge
+
+Before your verdict, list every behavior you considered and set aside as outside the plan or spec, one line each, with the reason. The executor rules on each line; nothing you set aside is dropped silently. An empty list means you set nothing aside.
+
+## Read-only review
+
+Your review is read-only on this checkout. Do not mutate the working tree (except the git-ignored bin/ that scripts/smoke.sh builds), the index, HEAD, or branch state. Use `git show`, `git diff`, and `git log` to inspect history. If you need a working copy of a different revision, use `git worktree add /tmp/review-<sha> <sha>` and remove it afterwards — never move HEAD on this checkout.
+
+## You do not dispatch subagents
+
+Do all of this review yourself. Never spawn a subagent to review part of the diff, and never spawn another reviewer for a second opinion. If the diff feels too large for one pass, review it in passes yourself and say so in your report.
+
+## Calibration
+
+Categorize issues by actual severity. Not everything is Critical. Acknowledge what was done well before listing issues. If you find significant deviations from the plan, flag them specifically so the implementer can confirm whether the deviation was intentional. If you find issues with the plan itself rather than the implementation, say so.
+
+## Output format (your final message is saved verbatim as docs/review-raw.md, so make it self-contained Markdown)
+
+### Strengths
+### Verification run
+The commands of item 6 with their results.
+### Issues
+#### Critical (Must Fix)
+#### Important (Should Fix)
+#### Minor (Nice to Have)
+For each issue: an ID (C1, I1, M1 ...), File:line, what is wrong, why it matters, how to fix (if not obvious), and how a test could prove the fix.
+### Numbers checked
+A table: claim | where it appears | source checked | match?
+### Declined to judge
+### Recommendations
+### Assessment
+**Ready to merge?** Yes | No | With fixes. **Reasoning:** 1-2 sentences.
