@@ -1,0 +1,14 @@
+# build and test artifacts
+bin/
+*.out
+*.test
+
+# IDE and local configuration
+.idea/
+.vscode/
+*.iml
+.env
+.DS_Store
+
+# superpowers plan workspace (scratch)
+.superpowers/

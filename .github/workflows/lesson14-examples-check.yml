@@ -1,0 +1,100 @@
+name: Lesson 14 examples check
+
+# CI of the Lesson 14 examples (WebSockets). Every check is reported in the job summary
+# (Actions -> run -> Summary) as PASS/FAIL; a step fails at the END if at least one check failed,
+# so one run shows all problems. Jobs grow with the homework: static first.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lesson14-examples-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Prepare check helper
+        run: |
+          cat > "$RUNNER_TEMP/check.sh" <<'EOF'
+          FAILED=0
+          header() {
+            { echo ""; echo "### $1"; echo ""; echo "| Result | Check |"; echo "|---|---|"; } >> "$GITHUB_STEP_SUMMARY"
+          }
+          pass() {
+            echo "| PASS | $1 |" >> "$GITHUB_STEP_SUMMARY"
+            echo "PASS: $1"
+          }
+          fail() {
+            FAILED=1
+            echo "| FAIL | $1 |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Check failed::$1"
+            echo "FAIL: $1"
+            if [ -n "${2:-}" ]; then echo "$2" | tail -n 40; fi
+          }
+          check() {
+            local name="$1"; shift
+            local out
+            if out=$("$@" 2>&1); then pass "$name"; else fail "$name" "$out"; fi
+          }
+          EOF
+
+      - name: Repository structure, formatting, build, documentation
+        run: |
+          source "$RUNNER_TEMP/check.sh"
+          header "Lesson 14 examples: static checks"
+
+          required=(
+            README.md LICENSE Makefile go.mod .gitignore .gitattributes
+          )
+          missing=""
+          for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done
+          if [ -z "$missing" ]; then pass "Required files exist"; else fail "Required files exist" "missing:$missing"; fi
+
+          check "Module name is libratrack" grep -q '^module libratrack$' go.mod
+          no_root_go() { [ -z "$(ls ./*.go 2>/dev/null)" ]; }
+          check "No .go files in the repository root" no_root_go
+
+          gofmt_clean() {
+            local out
+            out=$(gofmt -l .)
+            if [ -n "$out" ]; then echo "Not formatted:"; echo "$out"; return 1; fi
+          }
+          check "gofmt: all files formatted" gofmt_clean
+          # go vet and go build exit 1 when "./..." matches no packages; the module gets its
+          # packages with the first example, until then these checks pass with a note.
+          module_packages() { go list ./... 2>/dev/null; }
+          vet_ok() { if [ -z "$(module_packages)" ]; then echo "no packages yet"; return 0; fi; go vet ./...; }
+          check "go vet ./..." vet_ok
+          build_ok() { if [ -z "$(module_packages)" ]; then echo "no packages yet"; return 0; fi; go build ./...; }
+          check "go build ./..." build_ok
+          tidy_clean() { go mod tidy && git diff --exit-code -- go.mod $(ls go.sum 2>/dev/null); }
+          check "go mod tidy leaves go.mod/go.sum unchanged" tidy_clean
+
+          # Portable (GNU and BSD grep): bytes 0x80-0xFF in any Go file of the module.
+          ascii_only() { ! LC_ALL=C grep -rn --include='*.go' $'[\x80-\xFF]' .; }
+          check "No non-ASCII characters in .go files" ascii_only
+
+          no_tokens_in_docs() { ! grep -rEqs 'eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' docs README.md prompts.txt; }
+          check "No JWT committed under docs/, in the README or in prompts.txt" no_tokens_in_docs
+
+          env_not_tracked() { grep -qx '\.env' .gitignore && ! git ls-files --error-unmatch .env 2> /dev/null; }
+          check ".env is ignored and not committed" env_not_tracked
+
+          scripts_parse() { local f; for f in scripts/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || return 1; done; }
+          check "Shell scripts parse (bash -n)" scripts_parse
+
+          exit $FAILED
