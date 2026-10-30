@@ -12,7 +12,7 @@ import (
 
 func testConfig() Config {
 	return Config{PongWait: time.Minute, PingPeriod: 54 * time.Second, WriteWait: 10 * time.Second,
-		MaxMessageSize: 4096, SendBuffer: 64}
+		MaxMessageSize: 4096, SendBuffer: 256}
 }
 
 func newTestClient(buffer int, topics ...string) *Client {

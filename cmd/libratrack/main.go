@@ -37,7 +37,7 @@ func main() {
 		PingPeriod:     *pongWait * 9 / 10,
 		WriteWait:      10 * time.Second,
 		MaxMessageSize: 4096,
-		SendBuffer:     64,
+		SendBuffer:     256,
 		AllowedOrigin:  *origin,
 	}
 	if err := rt.Validate(); err != nil {

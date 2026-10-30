@@ -221,8 +221,9 @@ func runCycles() error {
 			}
 		}
 		received := 0
+		readBy := time.Now().Add(5 * time.Second) // one deadline for the whole cycle: a lost message costs 5 s once
 		for _, c := range conns {
-			_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
+			_ = c.SetReadDeadline(readBy)
 			for n := 0; n < len(conns); n++ {
 				if _, _, err := c.ReadMessage(); err != nil {
 					break
