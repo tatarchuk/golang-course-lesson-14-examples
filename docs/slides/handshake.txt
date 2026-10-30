@@ -1,0 +1,38 @@
+Slide 8: the WebSocket handshake by hand with curl, against the slide code as written (step 1.5).
+Server: bin/libratrack-as-on-slides (= go run ./cmd/libratrack), 127.0.0.1:8080, allowed origin http://localhost:8080.
+The request carries the slide's sample Sec-WebSocket-Key; the 101 answer must carry the slide's Sec-WebSocket-Accept.
+After 101 the socket speaks WebSocket frames, so curl just waits for data until --max-time ends it (exit 28).
+The token never appears below: the shell variable holds it.
+
+$ TOKEN=$(curl -sS -X POST -d '{"username":"anna"}' http://127.0.0.1:8080/api/login | sed -E 's/.*"token":"([^"]+)".*/\1/')
+[exit 0]
+
+$ curl -sS -i -N --max-time 2 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' -H 'Origin: http://localhost:8080' "http://127.0.0.1:8080/ws/dashboard?token=$TOKEN"
+curl: (28) Operation timed out after 2006 milliseconds with 0 bytes received
+HTTP/1.1 101 Switching Protocols
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+
+[exit 28]
+
+$ curl -sS -i --max-time 2 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' -H 'Origin: http://evil.example' "http://127.0.0.1:8080/ws/dashboard?token=$TOKEN"
+HTTP/1.1 403 Forbidden
+Content-Type: text/plain; charset=utf-8
+Sec-Websocket-Version: 13
+X-Content-Type-Options: nosniff
+Date: Fri, 30 Oct 2026 09:11:31 GMT
+Content-Length: 10
+
+Forbidden
+[exit 0]
+
+$ curl -sS -i --max-time 2 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H 'Sec-WebSocket-Version: 13' -H 'Origin: http://localhost:8080' 'http://127.0.0.1:8080/ws/dashboard'
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Fri, 30 Oct 2026 09:11:31 GMT
+Content-Length: 38
+
+{"error":"a valid token is required"}
+[exit 0]
+

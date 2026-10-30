@@ -1,0 +1,60 @@
+Step 1.5: the slide code as written, run on the Mac (2026-10-30). Server: bin/libratrack-as-on-slides
+(= go run ./cmd/libratrack) on 127.0.0.1:8080. The browser part (chat in three tabs, dashboard and SSE
+tabs) is in the screenshots S4 and S5; this file has the terminal part.
+
+1. Slide 41: a REST call reaches a dashboard client. olena listens in the background (wsclient listen),
+   bohdan returns loans through the API.
+
+$ TOKEN=$(curl -sS -X POST -d '{"username":"bohdan"}' http://127.0.0.1:8080/api/login | sed -E 's/.*"token":"([^"]+)".*/\1/')
+[exit 0]
+
+$ curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/loans/L-2/return
+204
+[exit 0]
+
+$ curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/loans/L-2/return
+409
+[exit 0]
+
+$ curl -sS -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/loans/L-404/return
+404
+[exit 0]
+
+$ bin/wsclient -user olena listen      # in a second terminal, stopped with Ctrl+C
+11:11:31.508812 listening to the dashboard as olena, Ctrl+C to leave
+11:11:31.971083 <- {"event":"loan_returned","loan_id":"L-2"}
+11:11:32.503043 connection closed: websocket: close 1000 (normal)
+
+2. Slide 43, row 5: 100 clients connect and leave, three times, against the slide code.
+
+$ bin/wsclient -clients 100 -cycles 3 cycles
+11:11:32.518874 before: clients=0 goroutines=9; 3 cycles of 100 clients, leaving with a close frame (1000)
+11:11:32.567882 cycle 1/3: 100 connected (server: clients=100 goroutines=309), 10000 of 10000 messages received, all left
+11:11:32.627611 cycle 2/3: 100 connected (server: clients=100 goroutines=409), 10000 of 10000 messages received, all left
+11:11:32.686194 cycle 3/3: 100 connected (server: clients=100 goroutines=509), 10000 of 10000 messages received, all left
+11:11:37.777198 after:  clients=0 goroutines=309 (+300 against the start)
+11:11:37.777381 the server did not return to its baseline within 5s: about 300 goroutines leaked
+[exit 1]
+
+$ curl -sS http://127.0.0.1:8080/debug/stats
+{"clients":0,"goroutines":309}
+[exit 0]
+
+3. Server log of this run, 910 lines, excerpt and counts:
+
+2026/10/30 11:11:28 WARN: JWT_SECRET is not set, the built-in development secret signs the tokens
+2026/10/30 11:11:28 listening on 127.0.0.1:8080, open http://localhost:8080 (origin http://localhost:8080, pong wait 1m0s; TLS off, local development only)
+2026/10/30 11:11:29 hub: register user=anna topics=[dashboard] (1 clients)
+2026/10/30 11:11:31 unexpected close: websocket: close 1006 (abnormal closure): unexpected EOF
+2026/10/30 11:11:31 hub: unregister user=anna topics=[dashboard] (0 clients)
+2026/10/30 11:11:31 upgrade failed: websocket: request origin not allowed by Upgrader.CheckOrigin
+2026/10/30 11:11:31 hub: register user=olena topics=[dashboard] (1 clients)
+2026/10/30 11:11:32 unexpected close: websocket: close 1000 (normal): bye
+...
+2026/10/30 11:11:32 hub: unregister user=olena topics=[chat:general] (1 clients)
+2026/10/30 11:11:32 hub: unregister user=anna topics=[chat:general] (0 clients)
+2026/10/30 11:11:37 shutting down
+
+hub: register lines:   302
+hub: unregister lines: 302
+unexpected close lines (slide 14's IsUnexpectedCloseError with only 1001 expected logs every normal 1000 close): 302
