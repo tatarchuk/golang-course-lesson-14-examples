@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard - LibraTrack realtime</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="dashboard">
+  <header><a href="index.html">LibraTrack realtime</a> <span id="who"></span> <span id="status" class="status">connecting...</span></header>
+  <main>
+    <h1>Live dashboard over WebSocket</h1>
+    <p class="hint">Every loan returned through <code>POST /api/loans/{id}/return</code> appears here.</p>
+    <ul id="log" class="log"></ul>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

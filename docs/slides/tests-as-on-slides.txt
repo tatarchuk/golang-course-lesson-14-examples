@@ -1,0 +1,206 @@
+Step 1.4: the slide code as written, run against the tests of step 1.3 (and one added in this step:
+TestPingsAndBroadcastsShareOneWriter). Hub: slides 20 and 26. Pumps: slides 14, 15 and 27. Handler: slide 13.
+Chat: slide 40. SSE: slide 30. Loans: slide 41. Recorded on the Mac, 2026-10-30.
+
+Every test runs on its own, so that one crash cannot hide the other results. 14 of 22 pass, 8 fail; each
+failure is something the deck itself warns about (slides 16, 28, 44, 45), see the README triage.
+TestPingsAndBroadcastsShareOneWriter failed the same way in three runs (3, 6 and 5 data races, gorilla's
+"concurrent write" panic each time); run 1 is shown.
+The line numbers are those of the test files without the eight t.Skip(asOnSlides) lines that the
+same commit adds (so that CI stays green) and step 1.6 removes again.
+
+PASS  auth     TestIssueParseRoundTrip
+PASS  auth     TestParseRejectsOtherSecretAndExpiredToken
+PASS  auth     TestMiddlewareReadsHeaderOrQuery
+PASS  library  TestReturnPublishesLoanReturned
+PASS  library  TestReturnTwiceConflicts
+PASS  library  TestReturnUnknownLoan
+PASS  realtime TestPublishOnlyToSubscribedTopic
+FAIL  realtime TestSlowClientDroppedNotBlocking            hub_test.go:96: healthy client got 3 messages, want 10 (the hub is stuck on the slow client)
+FAIL  realtime TestStopUnblocksLateUnregister              hub_test.go:125: second Stop panicked: close of closed channel
+PASS  server   TestHandshakeAcceptMatchesSlide8
+PASS  server   TestCheckOriginRejectsForeignOrigin
+PASS  server   TestHandshakeRequiresToken
+PASS  server   TestChatThreeClients
+FAIL  server   TestChatAuthorAndRoomFromConnection         server_test.go:121: read: read tcp 127.0.0.1:50671->127.0.0.1:50669: i/o timeout
+PASS  server   TestDashboardEventWithinOneSecond
+FAIL  server   TestSSEDashboard                            server_test.go:206: hub has 1 clients after 1s, want 0
+FAIL  server   TestOversizedMessageCloses1009              server_test.go:216: connection ended without a close frame: read tcp 127.0.0.1:50680->127.0.0.1:50679: i/o timeout
+PASS  server   TestAbruptDisconnectCleanedUp
+PASS  server   TestDeadPeerTimesOut
+FAIL  server   TestPingsAndBroadcastsShareOneWriter       races=3  panic: concurrent write to websocket connection
+FAIL  server   TestConnectDisconnectCyclesNoLeak           server_test.go:320: 104 goroutines 3s after the clients left, baseline 4: about 100 leaked
+FAIL  server   TestShutdownClosesClients                   server_test.go:336: connection ended without a close frame: read tcp 127.0.0.1:50907->127.0.0.1:50906: i/o timeout
+
+$ go test -race -count=1 -timeout 60s -run '^TestIssueParseRoundTrip$' ./internal/auth
+ok  	libratrack/internal/auth	1.367s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestParseRejectsOtherSecretAndExpiredToken$' ./internal/auth
+ok  	libratrack/internal/auth	1.211s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestMiddlewareReadsHeaderOrQuery$' ./internal/auth
+ok  	libratrack/internal/auth	1.210s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestReturnPublishesLoanReturned$' ./internal/library
+ok  	libratrack/internal/library	1.297s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestReturnTwiceConflicts$' ./internal/library
+ok  	libratrack/internal/library	1.145s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestReturnUnknownLoan$' ./internal/library
+ok  	libratrack/internal/library	1.214s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestPublishOnlyToSubscribedTopic$' ./internal/realtime
+ok  	libratrack/internal/realtime	1.349s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestSlowClientDroppedNotBlocking$' ./internal/realtime
+--- FAIL: TestSlowClientDroppedNotBlocking (1.01s)
+    hub_test.go:96: healthy client got 3 messages, want 10 (the hub is stuck on the slow client)
+FAIL
+FAIL	libratrack/internal/realtime	1.185s
+FAIL
+[2 server log lines omitted: hub register/unregister, 'unexpected close']
+[exit 1]
+
+$ go test -race -count=1 -timeout 60s -run '^TestStopUnblocksLateUnregister$' ./internal/realtime
+--- FAIL: TestStopUnblocksLateUnregister (0.30s)
+    hub_test.go:125: second Stop panicked: close of closed channel
+    hub_test.go:136: Stop did not close the client's send channel
+    hub_test.go:138: unregisterClient after Stop did not return within 100ms
+    hub_test.go:140: registerClient after Stop did not return within 100ms
+FAIL
+FAIL	libratrack/internal/realtime	0.473s
+FAIL
+[1 server log lines omitted: hub register/unregister, 'unexpected close']
+[exit 1]
+
+$ go test -race -count=1 -timeout 60s -run '^TestHandshakeAcceptMatchesSlide8$' ./internal/server
+ok  	libratrack/internal/server	1.396s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestCheckOriginRejectsForeignOrigin$' ./internal/server
+ok  	libratrack/internal/server	1.227s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestHandshakeRequiresToken$' ./internal/server
+ok  	libratrack/internal/server	1.227s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestChatThreeClients$' ./internal/server
+ok  	libratrack/internal/server	1.830s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestChatAuthorAndRoomFromConnection$' ./internal/server
+--- FAIL: TestChatAuthorAndRoomFromConnection (1.01s)
+    server_test.go:121: read: read tcp 127.0.0.1:50671->127.0.0.1:50669: i/o timeout
+FAIL
+FAIL	libratrack/internal/server	1.237s
+FAIL
+[6 server log lines omitted: hub register/unregister, 'unexpected close']
+[exit 1]
+
+$ go test -race -count=1 -timeout 60s -run '^TestDashboardEventWithinOneSecond$' ./internal/server
+ok  	libratrack/internal/server	1.228s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestSSEDashboard$' ./internal/server
+--- FAIL: TestSSEDashboard (4.02s)
+    server_test.go:206: hub has 1 clients after 1s, want 0
+    helpers_test.go:54: a handler was still running 3s after the server was asked to close
+FAIL
+FAIL	libratrack/internal/server	4.263s
+FAIL
+[1 server log lines omitted: hub register/unregister, 'unexpected close']
+[exit 1]
+
+$ go test -race -count=1 -timeout 60s -run '^TestOversizedMessageCloses1009$' ./internal/server
+--- FAIL: TestOversizedMessageCloses1009 (1.01s)
+    server_test.go:216: connection ended without a close frame: read tcp 127.0.0.1:50680->127.0.0.1:50679: i/o timeout
+FAIL
+FAIL	libratrack/internal/server	1.233s
+FAIL
+[2 server log lines omitted: hub register/unregister, 'unexpected close']
+[exit 1]
+
+$ go test -race -count=1 -timeout 60s -run '^TestAbruptDisconnectCleanedUp$' ./internal/server
+ok  	libratrack/internal/server	1.247s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestDeadPeerTimesOut$' ./internal/server
+ok  	libratrack/internal/server	1.536s
+[exit 0]
+
+$ go test -race -count=1 -timeout 60s -run '^TestPingsAndBroadcastsShareOneWriter$' ./internal/server
+==================
+WARNING: DATA RACE
+Read at 0x00c000240498 by goroutine 14:
+  github.com/gorilla/websocket.(*Conn).beginMessage()
+      $GOMODCACHE/github.com/gorilla/websocket@v1.5.3/conn.go:479 +0x3c
+  github.com/gorilla/websocket.(*Conn).WriteMessage()
+      $GOMODCACHE/github.com/gorilla/websocket@v1.5.3/conn.go:764 +0xa4
+  libratrack/internal/realtime.(*Client).writePump()
+      ./internal/realtime/client.go:74 +0xf4
+  libratrack/internal/realtime.ServeWS.func2.gowrap2()
+      ./internal/realtime/ws_handler.go:42 +0x2c
+
+Previous write at 0x00c000240498 by goroutine 13:
+  github.com/gorilla/websocket.(*messageWriter).endMessage()
+      $GOMODCACHE/github.com/gorilla/websocket@v1.5.3/conn.go:546 +0xa4
+  github.com/gorilla/websocket.(*messageWriter).flushFrame()
+      $GOMODCACHE/github.com/gorilla/websocket@v1.5.3/conn.go:633 +0x7dc
+  github.com/gorilla/websocket.(*Conn).WriteMessage()
+      $GOMODCACHE/github.com/gorilla/websocket@v1.5.3/conn.go:770 +0x134
+  libratrack/internal/realtime.(*Client).keepAlive.func2()
+      ./internal/realtime/client.go:45 +0x6c
+
+Goroutine 14 (running) created at:
+  libratrack/internal/realtime.ServeWS.func2()
+      ./internal/realtime/ws_handler.go:42 +0x454
+  net/http.HandlerFunc.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2338 +0x48
+  libratrack/internal/auth.Middleware.func1.func1()
+      ./internal/auth/token.go:84 +0x1d8
+  net/http.HandlerFunc.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2338 +0x48
+  net/http.(*ServeMux).ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2903 +0x1a8
+  net/http.serverHandler.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3413 +0x268
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2137 +0xa84
+  context.withCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:279 +0x94
+  context.WithCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:242 +0x28
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2030 +0x288
+  net/http.(*Server).Serve.gowrap3()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3581 +0x40
+[1 server log lines omitted: hub register/unregister, 'unexpected close']
+[192 more lines omitted: the rest of the race reports and goroutine traces]
+[exit 1]
+
+$ go test -race -count=1 -timeout 60s -run '^TestConnectDisconnectCyclesNoLeak$' ./internal/server
+--- FAIL: TestConnectDisconnectCyclesNoLeak (3.17s)
+    server_test.go:320: 104 goroutines 3s after the clients left, baseline 4: about 100 leaked
+FAIL
+FAIL	libratrack/internal/server	3.385s
+FAIL
+[300 server log lines omitted: hub register/unregister, 'unexpected close']
+[exit 1]
+
+$ go test -race -count=1 -timeout 60s -run '^TestShutdownClosesClients$' ./internal/server
+--- FAIL: TestShutdownClosesClients (1.01s)
+    server_test.go:336: connection ended without a close frame: read tcp 127.0.0.1:50907->127.0.0.1:50906: i/o timeout
+FAIL
+FAIL	libratrack/internal/server	1.231s
+FAIL
+[20 server log lines omitted: hub register/unregister, 'unexpected close']
+[exit 1]

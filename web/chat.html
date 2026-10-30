@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat - LibraTrack realtime</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="chat">
+  <header><a href="index.html">LibraTrack realtime</a> <span id="who"></span> <span id="status" class="status">connecting...</span></header>
+  <main>
+    <h1>Chat, room <span id="room"></span></h1>
+    <ul id="log" class="log"></ul>
+    <form id="send">
+      <input name="text" autocomplete="off" placeholder="Message" required maxlength="1000">
+      <button type="submit">Send</button>
+    </form>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

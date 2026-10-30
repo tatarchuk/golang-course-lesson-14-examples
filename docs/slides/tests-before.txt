@@ -1,0 +1,42 @@
+Step 1.3: the slide 43 tests written before the code they test (red run). Recorded on the Mac, 2026-10-30.
+Expected: every package with new tests fails to build, because NewHub, ServeWS, NewLoanService, Issue and server.New do not exist yet. The output is filtered for reading (sort | uniq | head), so the [exit] line is the filter's; the FAIL lines are the result.
+
+$ go test -race -count=1 ./... 2>&1 | grep -v "^#" | sort | uniq | head -40
+?   	libratrack/internal/naive	[no test files]
+FAIL
+FAIL	libratrack/internal/auth [build failed]
+FAIL	libratrack/internal/library [build failed]
+FAIL	libratrack/internal/realtime [build failed]
+FAIL	libratrack/internal/server [build failed]
+internal/auth/token_test.go:15:14: undefined: Issue
+internal/auth/token_test.go:19:12: undefined: Parse
+internal/auth/token_test.go:29:14: undefined: Issue
+internal/auth/token_test.go:30:15: undefined: Parse
+internal/auth/token_test.go:30:53: undefined: ErrInvalidToken
+internal/auth/token_test.go:33:16: undefined: Issue
+internal/auth/token_test.go:34:15: undefined: Parse
+internal/auth/token_test.go:34:55: undefined: ErrInvalidToken
+internal/auth/token_test.go:42:7: undefined: Middleware
+internal/auth/token_test.go:43:11: too many errors
+internal/auth/token_test.go:43:11: undefined: UserFrom
+internal/library/loan_service_test.go:33:22: undefined: NewMemoryLoans
+internal/library/loan_service_test.go:33:7: undefined: NewLoanService
+internal/library/loan_service_test.go:44:22: undefined: NewMemoryLoans
+internal/library/loan_service_test.go:44:7: undefined: NewLoanService
+internal/library/loan_service_test.go:46:67: undefined: ErrAlreadyReturned
+internal/library/loan_service_test.go:56:22: undefined: NewMemoryLoans
+internal/library/loan_service_test.go:56:7: undefined: NewLoanService
+internal/library/loan_service_test.go:57:69: undefined: ErrNotFound
+internal/realtime/hub_test.go:116:7: undefined: NewHub
+internal/realtime/hub_test.go:13:19: undefined: Config
+internal/realtime/hub_test.go:14:9: undefined: Config
+internal/realtime/hub_test.go:18:51: undefined: Client
+internal/realtime/hub_test.go:19:8: undefined: Client
+internal/realtime/hub_test.go:44:7: undefined: NewHub
+internal/realtime/hub_test.go:72:7: undefined: NewHub
+libratrack/internal/auth: no non-test Go files in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-14-examples/internal/auth
+libratrack/internal/realtime: no non-test Go files in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-14-examples/internal/realtime
+libratrack/internal/server: no non-test Go files in /Users/oleksandr.tatarchuk/repo/golang-course-lesson-14-examples/internal/server
+ok  	libratrack/internal/mutexhub	1.390s
+[exit 0]
+
