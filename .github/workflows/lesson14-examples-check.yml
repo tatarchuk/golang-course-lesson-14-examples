@@ -2,7 +2,8 @@ name: Lesson 14 examples check
 
 # CI of the Lesson 14 examples (WebSockets). Every check is reported in the job summary
 # (Actions -> run -> Summary) as PASS/FAIL; a step fails at the END if at least one check failed,
-# so one run shows all problems. Jobs grow with the homework: static first.
+# so one run shows all problems. Jobs: static (structure, formatting, the slide 13/44/45 rules as source
+# checks), test (go test -race and scripts/smoke.sh) and race-demo (the slide 23 map must fail under -race).
 
 on:
   push:
@@ -58,7 +59,24 @@ jobs:
           header "Lesson 14 examples: static checks"
 
           required=(
-            README.md LICENSE Makefile go.mod .gitignore .gitattributes
+            README.md LICENSE Makefile go.mod go.sum .gitignore .gitattributes prompts.txt
+            cmd/libratrack/main.go cmd/wsclient/main.go
+            internal/auth/token.go internal/auth/token_test.go
+            internal/library/loan_service.go internal/library/loan_service_test.go
+            internal/naive/clients.go internal/naive/race_test.go
+            internal/mutexhub/hub_mutex.go internal/mutexhub/hub_mutex_test.go
+            internal/realtime/hub.go internal/realtime/client.go internal/realtime/ws_handler.go
+            internal/realtime/chat.go internal/realtime/sse_handler.go internal/realtime/hub_test.go
+            internal/server/server.go internal/server/server_test.go internal/server/helpers_test.go
+            web/embed.go web/index.html web/chat.html web/dashboard.html web/sse.html web/app.js web/style.css
+            scripts/smoke.sh scripts/handshake.sh scripts/return-loan.sh scripts/cycles.sh scripts/dead-peer.sh
+            docs/environment.txt docs/slides/naive-race.txt docs/slides/tests-before.txt
+            docs/slides/tests-as-on-slides.txt docs/slides/handshake.txt docs/slides/run-as-on-slides.txt
+            docs/slides/tests-after-review.txt docs/slides/cycles.txt docs/slides/dead-peer.txt
+            docs/slides/browser-cycles.txt docs/slides/smoke.txt docs/ai/chat-design-raw.md docs/ai/hub-review-raw.md
+            docs/screenshots/s01-versions.png docs/screenshots/s02-race-demo.png docs/screenshots/s03-handshake.png
+            docs/screenshots/s04-chat.png docs/screenshots/s05-dashboard-sse.png
+            docs/screenshots/s06-tests-after-review.png docs/screenshots/s07-cycles.png docs/screenshots/s08-dead-peer.png
           )
           missing=""
           for f in "${required[@]}"; do [ -f "$f" ] || missing="$missing $f"; done
@@ -97,4 +115,55 @@ jobs:
           scripts_parse() { local f; for f in scripts/*.sh; do [ -e "$f" ] || continue; bash -n "$f" || return 1; done; }
           check "Shell scripts parse (bash -n)" scripts_parse
 
+          # The slides' own checklists as source checks, on the channel hub of internal/realtime.
+          # Slide 45: exactly one goroutine owns the client map; any use of h.clients outside hub.go
+          # is a design violation.
+          single_owner() { ! grep -n '\.clients' internal/realtime/*.go | grep -v '^internal/realtime/hub\.go:'; }
+          check "Slide 45: the client map is used only in internal/realtime/hub.go" single_owner
+          # Slides 14 and 44: only writePump writes to a connection (WriteControl is safe anywhere).
+          one_writer() { ! grep -n -E '\.(WriteMessage|WriteJSON|NextWriter)\(' internal/realtime/*.go | grep -v '^internal/realtime/client\.go:'; }
+          check "Slide 44: messages are written only in internal/realtime/client.go" one_writer
+          # Slides 13 and 16: CheckOrigin compares one origin, it never accepts everything.
+          no_accept_all() { ! grep -n 'return true' internal/realtime/ws_handler.go; }
+          check "Slide 13: CheckOrigin never returns true" no_accept_all
+          check "Slide 23: the race demo is behind the racedemo build tag" grep -qx '//go:build racedemo' internal/naive/race_test.go
+          check "go vet with the racedemo tag" go vet -tags racedemo ./...
+
           exit $FAILED
+
+  test:
+    name: Race tests and smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: go test -race (slides 28, 43, 44)
+        run: go test -race -count=1 ./...
+
+      - name: Smoke test (scripts/smoke.sh)
+        run: bash scripts/smoke.sh
+
+  race-demo:
+    name: Race detector catches slide 23
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: The unsynchronised map must fail under -race
+        run: |
+          if go test -race -tags racedemo -count=1 ./internal/naive > race.log 2>&1; then
+            cat race.log
+            echo "::error title=Race not detected::go test -race passed on the slide 23 map"
+            exit 1
+          fi
+          grep -m1 -A6 'WARNING: DATA RACE' race.log
+          grep -q 'WARNING: DATA RACE' race.log || { cat race.log; echo "::error title=No race report::the test failed without a DATA RACE report"; exit 1; }
+          echo "The race detector reported $(grep -c 'WARNING: DATA RACE' race.log) data races, as slide 23 says it will."

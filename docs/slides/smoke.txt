@@ -1,0 +1,22 @@
+Step 1.8: scripts/smoke.sh, the end-to-end check that CI runs in the test job: builds bin/, starts the server
+on 127.0.0.1:18090 and walks the slides (8, 13, 39, 40, 41, 43). Recorded on the Mac, 2026-10-30.
+
+$ bash scripts/smoke.sh
+PASS: GET / serves the index page
+PASS: GET /chat.html
+PASS: POST /api/login as anna returns a token
+PASS: POST /api/login as an unknown user -> 401
+PASS: slide 8 handshake -> 101 with the slide's Sec-WebSocket-Accept
+PASS: foreign Origin -> 403
+PASS: no token -> 401
+PASS: POST /api/loans/L-2/return -> 204
+PASS: returning L-2 again -> 409
+PASS: returning L-404 -> 404
+PASS: returning without a token -> 401
+PASS: the dashboard client received loan_returned L-2
+PASS: chat: 3 clients each receive all 3 messages
+PASS: 3 cycles of 50 clients (close frame): back to the goroutine baseline
+PASS: 3 cycles of 50 clients (abrupt): back to the goroutine baseline
+SMOKE OK
+[exit 0]
+
