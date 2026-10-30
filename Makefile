@@ -10,6 +10,12 @@ run:           ## serve the examples on http://localhost:8080 (ARGS="-pong-wait 
 build:         ## build the server and the terminal client into bin/
 	go build -o bin/ ./cmd/libratrack ./cmd/wsclient
 
+build-as-on-slides: ## build the server as the slides show it (commit 0e85619) as bin/libratrack-as-on-slides
+	rm -rf bin/as-on-slides && git worktree prune
+	git worktree add --detach bin/as-on-slides 0e85619
+	cd bin/as-on-slides && go build -o ../libratrack-as-on-slides ./cmd/libratrack
+	git worktree remove --force bin/as-on-slides
+
 test:          ## every test with the race detector
 	go test -race -count=1 ./...
 
@@ -19,4 +25,4 @@ race-demo:     ## slide 23: the race detector on the unsynchronised map (fails o
 cycles:        ## 5 cycles of 20 clients against the running server, goroutines before and after
 	go run ./cmd/wsclient -clients 20 -cycles 5 cycles
 
-.PHONY: help run build test race-demo cycles
+.PHONY: help run build build-as-on-slides test race-demo cycles

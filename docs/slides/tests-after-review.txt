@@ -25,7 +25,8 @@ FAIL
 2. SendBuffer. With the slow-client drop in place, a queue of 16 was too small for the test bursts: 20 clients
    that chat at once put 20 messages into every queue within microseconds, and the hub disconnected healthy
    readers with 1008 "slow consumer: send queue full" (TestConnectDisconnectCyclesNoLeak, cycle 3) - the policy
-   working, with the wrong size. The default is now 64, the value the slide 34 design proposes; the drop policy
+   working, with the wrong size. The default became 64, the value the slide 34 design proposes (step 1.7 raised it
+   to 256 for slide 43's 100-client burst, see docs/slides/cycles.txt); the drop policy
    itself stays pinned by TestSlowClientDroppedNotBlocking with a queue of 2. TestPingsAndBroadcastsShareOneWriter
    sends a burst of 300 to one client, so it uses a queue of 512: it tests writers, not backpressure.
 

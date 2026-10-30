@@ -1,0 +1,66 @@
+Step 1.7: repeated connect/disconnect cycles from a real browser (Chrome 156) against the fixed server
+(bin/libratrack on 127.0.0.1:8080, started 12:38:30). anna reloaded the chat page about ten times, then went
+from the index to the WebSocket dashboard and back three times and closed the tab. Every reload or navigation
+closes the old WebSocket (the browser sends 1001, going away) and opens a new one. The bohdan line at 12:43:12
+is the SSE page of S5: EventSource reconnected on its own when this server replaced the slide-code server.
+Recorded on the Mac, 2026-10-30.
+
+$ curl -sS http://127.0.0.1:8080/debug/stats      # before the server started serving the browser
+{"clients":0,"goroutines":7}
+
+$ curl -sS http://127.0.0.1:8080/debug/stats      # after the tab was closed
+{"clients":0,"goroutines":7}
+
+
+Server log (46 lines), complete:
+
+2026/10/30 12:38:30 WARN: JWT_SECRET is not set, the built-in development secret signs the tokens
+2026/10/30 12:38:30 listening on 127.0.0.1:8080, open http://localhost:8080 (origin http://localhost:8080, pong wait 1m0s; TLS off, local development only)
+2026/10/30 12:43:12 hub: register user=bohdan topics=[dashboard] (1 clients)
+2026/10/30 12:43:12 hub: unregister user=bohdan topics=[dashboard], left (0 clients)
+2026/10/30 13:09:28 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:33 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:33 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:33 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:33 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:33 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:33 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:34 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:34 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:34 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:34 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:34 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:34 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:35 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:35 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:35 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:36 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:36 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:36 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:36 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:36 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:36 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:37 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:37 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:37 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:37 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:37 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:37 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:37 client: user=anna topics=[chat:general] disconnected: closed by the client (1001)
+2026/10/30 13:09:37 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:09:37 hub: register user=anna topics=[chat:general] (1 clients)
+2026/10/30 13:09:49 client: user=anna topics=[chat:general] disconnected: closed by the client (1001) WebSocket is closed due to suspension.
+2026/10/30 13:09:49 hub: unregister user=anna topics=[chat:general], left (0 clients)
+2026/10/30 13:12:43 hub: register user=anna topics=[dashboard] (1 clients)
+2026/10/30 13:12:45 client: user=anna topics=[dashboard] disconnected: closed by the client (1001) WebSocket is closed due to suspension.
+2026/10/30 13:12:45 hub: unregister user=anna topics=[dashboard], left (0 clients)
+2026/10/30 13:12:46 hub: register user=anna topics=[dashboard] (1 clients)
+2026/10/30 13:12:49 client: user=anna topics=[dashboard] disconnected: closed by the client (1001) WebSocket is closed due to suspension.
+2026/10/30 13:12:49 hub: unregister user=anna topics=[dashboard], left (0 clients)
+2026/10/30 13:12:50 hub: register user=anna topics=[dashboard] (1 clients)
+2026/10/30 13:13:08 client: user=anna topics=[dashboard] disconnected: closed by the client (1001)
+2026/10/30 13:13:08 hub: unregister user=anna topics=[dashboard], left (0 clients)
+
+hub: register lines:   15
+hub: unregister lines: 15
+client disconnect reasons: 11 disconnected: closed by the client (1001);3 disconnected: closed by the client (1001) WebSocket is closed due to suspension.

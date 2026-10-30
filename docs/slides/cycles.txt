@@ -1,0 +1,45 @@
+Step 1.7, slide 43 last row and homework item 2: repeated connect/disconnect cycles by hand, before and
+after the slide 42 review fixes. scripts/cycles.sh starts the given server binary on 127.0.0.1:18080 and runs
+bin/wsclient twice: 3 cycles of 100 clients that leave with a close frame (1000), then 3 cycles of 100 that
+drop the TCP connection without one. Every client sends one chat message and reads the others. The goroutine
+counts come from the server (GET /debug/stats). Recorded on the Mac, 2026-10-30.
+
+The fixed server queues up to 256 messages per client (gorilla's own chat example uses 256): here every
+queue gets a burst of 100 at once, and the 64 of step 1.6 made the hub drop healthy readers as slow
+consumers under this load. The drop itself is still pinned by TestSlowClientDroppedNotBlocking (queue of 2).
+
+$ make build build-as-on-slides > /dev/null 2>&1
+[exit 0]
+
+$ bash scripts/cycles.sh bin/libratrack-as-on-slides
+== server: bin/libratrack-as-on-slides
+12:37:33.165940 before: clients=0 goroutines=7; 3 cycles of 100 clients, leaving with a close frame (1000)
+12:37:33.220210 cycle 1/3: 100 connected (server: clients=100 goroutines=307), 10000 of 10000 messages received, all left
+12:37:33.262870 cycle 2/3: 100 connected (server: clients=100 goroutines=407), 10000 of 10000 messages received, all left
+12:37:33.317493 cycle 3/3: 100 connected (server: clients=100 goroutines=507), 10000 of 10000 messages received, all left
+12:37:38.329824 after:  clients=0 goroutines=307 (+300 against the start)
+12:37:38.330014 the server did not return to its baseline within 5s: about 300 goroutines leaked
+12:37:38.349407 before: clients=0 goroutines=307; 3 cycles of 100 clients, leaving abruptly (TCP closed, no close frame)
+12:37:38.407344 cycle 1/3: 100 connected (server: clients=100 goroutines=607), 10000 of 10000 messages received, all left
+12:37:38.461000 cycle 2/3: 100 connected (server: clients=100 goroutines=707), 10000 of 10000 messages received, all left
+12:37:38.524799 cycle 3/3: 100 connected (server: clients=100 goroutines=807), 10000 of 10000 messages received, all left
+12:37:43.546565 after:  clients=0 goroutines=607 (+300 against the start)
+12:37:43.546817 the server did not return to its baseline within 5s: about 300 goroutines leaked
+[exit 1]
+
+$ bash scripts/cycles.sh bin/libratrack
+== server: bin/libratrack
+12:37:44.611681 before: clients=0 goroutines=7; 3 cycles of 100 clients, leaving with a close frame (1000)
+12:37:44.684065 cycle 1/3: 100 connected (server: clients=100 goroutines=207), 10000 of 10000 messages received, all left
+12:37:44.736285 cycle 2/3: 100 connected (server: clients=100 goroutines=207), 10000 of 10000 messages received, all left
+12:37:44.777562 cycle 3/3: 100 connected (server: clients=100 goroutines=207), 10000 of 10000 messages received, all left
+12:37:44.779065 after:  clients=0 goroutines=7 (+0 against the start)
+12:37:44.779083 OK: no client left registered, the goroutine count is back to the baseline
+12:37:44.786337 before: clients=0 goroutines=7; 3 cycles of 100 clients, leaving abruptly (TCP closed, no close frame)
+12:37:44.831053 cycle 1/3: 100 connected (server: clients=100 goroutines=207), 10000 of 10000 messages received, all left
+12:37:44.878039 cycle 2/3: 100 connected (server: clients=100 goroutines=207), 10000 of 10000 messages received, all left
+12:37:44.918426 cycle 3/3: 100 connected (server: clients=100 goroutines=207), 10000 of 10000 messages received, all left
+12:37:45.020570 after:  clients=0 goroutines=7 (+0 against the start)
+12:37:45.020604 OK: no client left registered, the goroutine count is back to the baseline
+[exit 0]
+

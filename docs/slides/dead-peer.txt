@@ -1,0 +1,22 @@
+Step 1.7, slides 15 and 43 (row 2): a client that vanishes without closing its connection, against the
+fixed server. scripts/dead-peer.sh starts bin/libratrack on 127.0.0.1:18081 with a 3 s pong wait (pings every
+2.7 s), connects one dashboard client (bin/wsclient listen) and freezes it with kill -STOP: the kernel still
+holds the TCP connection open, but nobody answers the pings. Last, a handshake from a foreign origin.
+Recorded on the Mac, 2026-10-30.
+
+$ bash scripts/dead-peer.sh
+== 12:37:55 olena's dashboard client is connected: {"clients":1,"goroutines":9}
+== 12:37:55 kill -STOP: the client is frozen and answers no pings (server pong wait 3s)
+   12:37:57 {"clients":1,"goroutines":9}
+   12:37:58 {"clients":0,"goroutines":7}
+== server log:
+   2026/10/30 12:37:54 hub: register user=olena topics=[dashboard] (1 clients)
+   2026/10/30 12:37:57 client: user=olena topics=[dashboard] disconnected: no pong before the read deadline
+   2026/10/30 12:37:57 hub: unregister user=olena topics=[dashboard], left (0 clients)
+== kill -CONT: the client wakes up and finds its connection gone:
+   12:37:54.955278 listening to the dashboard as olena, Ctrl+C to leave
+   12:37:58.049742 connection closed: websocket: close 1006 (abnormal closure): unexpected EOF
+== a handshake from a foreign origin is refused (slide 13):
+   12:37:59.072410 handshake refused: 403 Forbidden
+[exit 0]
+
