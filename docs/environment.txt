@@ -1,0 +1,43 @@
+Environment of the Lesson 14 examples run (native on the Mac, no Docker, no VM). Recorded 2026-10-30.
+Module versions of the module: go.mod and go.sum; github.com/golang-jwt/jwt/v5 joins with the examples that need it.
+
+$ sw_vers
+ProductName:		macOS
+ProductVersion:		27.2
+BuildVersion:		26B123
+[exit 0]
+
+$ uname -m
+arm64
+[exit 0]
+
+$ sysctl -n machdep.cpu.brand_string
+Apple M2 Pro
+[exit 0]
+
+$ go version
+go version go1.27.1 darwin/arm64
+[exit 0]
+
+$ go env GOOS GOARCH CGO_ENABLED
+darwin
+arm64
+1
+[exit 0]
+
+$ go list -m github.com/gorilla/websocket
+github.com/gorilla/websocket v1.5.3
+[exit 0]
+
+$ defaults read "/Applications/Google Chrome.app/Contents/Info" CFBundleShortVersionString
+156.0.8078.74
+[exit 0]
+
+$ defaults read /Applications/Safari.app/Contents/Info CFBundleShortVersionString
+27.2
+[exit 0]
+
+$ curl --version | head -1
+curl 8.7.1 (x86_64-apple-darwin26.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.12 nghttp2/1.69.0
+[exit 0]
+

@@ -1,0 +1,219 @@
+Slides 23, 24 and 44: the race detector on the unsynchronised connection map, and the RWMutex fix.
+internal/naive/clients.go is the slide 23 code; race_test.go (build tag racedemo) drives it from
+several goroutines. internal/mutexhub/hub_mutex.go is the slide 24 hub. Recorded on the Mac (2026-10-30).
+
+$ go version
+go version go1.27.1 darwin/arm64
+[exit 0]
+
+$ go test -race -tags racedemo -count=1 -v ./internal/naive
+=== RUN   TestNaiveMapRace
+==================
+WARNING: DATA RACE
+Read at 0x00c0001930b0 by goroutine 8:
+  runtime.deductAssistCredit()
+      /opt/homebrew/opt/go/libexec/src/runtime/malloc_stubs.go:169 +0x6c
+  libratrack/internal/naive.broadcast()
+      ./internal/naive/clients.go:34 +0x2fc
+  libratrack/internal/naive.TestNaiveMapRace()
+      ./internal/naive/race_test.go:36 +0x280
+  testing.tRunner()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2193 +0x164
+  testing.(*T).Run.gowrap1()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2258 +0x34
+
+Previous write at 0x00c0001930b0 by goroutine 10:
+  runtime.mapassign_fast64()
+      /opt/homebrew/opt/go/libexec/src/internal/runtime/maps/runtime_fast64.go:182 +0x3fc
+  libratrack/internal/naive.handleWS()
+      ./internal/naive/clients.go:23 +0x70
+  net/http.HandlerFunc.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2338 +0x48
+  net/http.serverHandler.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3413 +0x268
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2137 +0xa84
+  context.withCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:279 +0x94
+  context.WithCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:242 +0x28
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2030 +0x288
+  net/http.(*Server).Serve.gowrap3()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3581 +0x40
+
+Goroutine 8 (running) created at:
+  testing.(*T).Run()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2258 +0x7bc
+  testing.runTests.func1()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2742 +0x74
+  testing.tRunner()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2193 +0x164
+  testing.runTests()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2740 +0x7a0
+  testing.(*M).Run()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2600 +0xb38
+  main.main()
+      _testmain.go:46 +0x100
+
+Goroutine 10 (running) created at:
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3581 +0x654
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3551 +0x46c
+  net/http/httptest.(*Server).goServe.func1()
+      /opt/homebrew/opt/go/libexec/src/net/http/httptest/server.go:586 +0x94
+==================
+==================
+WARNING: DATA RACE
+Write at 0x00c0001930b0 by goroutine 10:
+  runtime.mapassign_fast64ptr()
+      /opt/homebrew/opt/go/libexec/src/internal/runtime/maps/runtime_fast64.go:400 +0x41c
+  libratrack/internal/naive.handleWS.deferwrap1()
+      ./internal/naive/clients.go:24 +0x3c
+  runtime.deferreturn()
+      /opt/homebrew/opt/go/libexec/src/runtime/panic.go:668 +0x58
+  net/http.HandlerFunc.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2338 +0x48
+  net/http.serverHandler.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3413 +0x268
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2137 +0xa84
+  context.withCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:279 +0x94
+  context.WithCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:242 +0x28
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2030 +0x288
+  net/http.(*Server).Serve.gowrap3()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3581 +0x40
+
+Previous read at 0x00c0001930b0 by goroutine 8:
+  runtime.mapIterStart()
+      /opt/homebrew/opt/go/libexec/src/runtime/map.go:156 +0x9c
+  libratrack/internal/naive.broadcast()
+      ./internal/naive/clients.go:34 +0x340
+  libratrack/internal/naive.TestNaiveMapRace()
+      ./internal/naive/race_test.go:36 +0x280
+  testing.tRunner()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2193 +0x164
+  testing.(*T).Run.gowrap1()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2258 +0x34
+
+Goroutine 10 (running) created at:
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3581 +0x654
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3551 +0x46c
+  net/http/httptest.(*Server).goServe.func1()
+      /opt/homebrew/opt/go/libexec/src/net/http/httptest/server.go:586 +0x94
+
+Goroutine 8 (running) created at:
+  testing.(*T).Run()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2258 +0x7bc
+  testing.runTests.func1()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2742 +0x74
+  testing.tRunner()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2193 +0x164
+  testing.runTests()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2740 +0x7a0
+  testing.(*M).Run()
+      /opt/homebrew/opt/go/libexec/src/testing/testing.go:2600 +0xb38
+  main.main()
+      _testmain.go:46 +0x100
+==================
+==================
+WARNING: DATA RACE
+Write at 0x00c0001930b0 by goroutine 20:
+  runtime.mapassign_fast64ptr()
+      /opt/homebrew/opt/go/libexec/src/internal/runtime/maps/runtime_fast64.go:400 +0x41c
+  libratrack/internal/naive.handleWS.deferwrap1()
+      ./internal/naive/clients.go:24 +0x3c
+  runtime.deferreturn()
+      /opt/homebrew/opt/go/libexec/src/runtime/panic.go:668 +0x58
+  net/http.HandlerFunc.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2338 +0x48
+  net/http.serverHandler.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3413 +0x268
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2137 +0xa84
+  context.withCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:279 +0x94
+  context.WithCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:242 +0x28
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2030 +0x288
+  net/http.(*Server).Serve.gowrap3()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3581 +0x40
+
+Previous write at 0x00c0001930b0 by goroutine 13:
+  runtime.mapassign_fast64ptr()
+      /opt/homebrew/opt/go/libexec/src/internal/runtime/maps/runtime_fast64.go:400 +0x41c
+  libratrack/internal/naive.handleWS.deferwrap1()
+      ./internal/naive/clients.go:24 +0x3c
+  runtime.deferreturn()
+      /opt/homebrew/opt/go/libexec/src/runtime/panic.go:668 +0x58
+  net/http.HandlerFunc.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2338 +0x48
+  net/http.serverHandler.ServeHTTP()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3413 +0x268
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2137 +0xa84
+  context.withCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:279 +0x94
+  context.WithCancel()
+      /opt/homebrew/opt/go/libexec/src/context/context.go:242 +0x28
+  net/http.(*conn).serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:2030 +0x288
+  net/http.(*Server).Serve.gowrap3()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3581 +0x40
+
+Goroutine 20 (running) created at:
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3581 +0x654
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3551 +0x46c
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3551 +0x46c
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3551 +0x46c
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3551 +0x46c
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3551 +0x46c
+  net/http/httptest.(*Server).goServe.func1()
+      /opt/homebrew/opt/go/libexec/src/net/http/httptest/server.go:586 +0x94
+
+Goroutine 13 (finished) created at:
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3581 +0x654
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3551 +0x46c
+  net/http.(*Server).Serve()
+      /opt/homebrew/opt/go/libexec/src/net/http/server.go:3551 +0x46c
+  net/http/httptest.(*Server).goServe.func1()
+      /opt/homebrew/opt/go/libexec/src/net/http/httptest/server.go:586 +0x94
+==================
+    testing.go:1865: race detected during execution of test
+--- FAIL: TestNaiveMapRace (0.17s)
+FAIL
+FAIL	libratrack/internal/naive	0.383s
+FAIL
+[exit 1]
+
+$ go test -tags racedemo -count=1 -v ./internal/naive
+=== RUN   TestNaiveMapRace
+--- PASS: TestNaiveMapRace (0.17s)
+PASS
+ok  	libratrack/internal/naive	0.342s
+[exit 0]
+
+$ go test -race -count=1 -v ./internal/mutexhub
+=== RUN   TestConcurrentRegisterBroadcastUnregister
+--- PASS: TestConcurrentRegisterBroadcastUnregister (0.00s)
+=== RUN   TestUnregisterTwiceIsSafe
+--- PASS: TestUnregisterTwiceIsSafe (0.00s)
+PASS
+ok  	libratrack/internal/mutexhub	1.172s
+[exit 0]
+
